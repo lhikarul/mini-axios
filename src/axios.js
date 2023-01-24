@@ -1,7 +1,7 @@
-import xhrAdapter from "./adapters/xhr";
 import { forEach, merge, spread } from "./utils";
 import defaultConfigs from "./defaults";
-
+import InterceptorManager from "./core/interceptorManager";
+import dispatchRequest from "./core/dispatchRequest";
 export default function axios(config) {
   config = merge(
     {
@@ -12,15 +12,21 @@ export default function axios(config) {
     config
   );
 
-  const promise = new Promise(function (resolve, reject) {
-    try {
-      if (typeof window !== "undefined") {
-        xhrAdapter(resolve, reject, config);
-      }
-    } catch (e) {
-      reject(e);
-    }
+  const chain = [dispatchRequest, undefined];
+
+  let promise = Promise.resolve(config);
+
+  axios.interceptors.request.forEach(function (interceptor) {
+    chain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
+
+  axios.interceptors.response.forEach(function (interceptor) {
+    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  while (chain.length) {
+    promise = promise.then(chain.shift(), chain.shift());
+  }
 
   promise.onsuccess = function success(fn) {
     promise.then(function (response) {
@@ -44,6 +50,11 @@ axios.all = (requests) => {
 };
 
 axios.spread = spread;
+
+axios.interceptors = {
+  request: new InterceptorManager(),
+  response: new InterceptorManager(),
+};
 
 createShortMethods("delete", "get", "head");
 

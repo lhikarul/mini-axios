@@ -1,3 +1,4 @@
+import xhrAdapter from "../adapters/xhr";
 import { isObject, isFile, isBlob } from "../utils";
 const JSON_START = /^\s*(\[|\{[^\{])/;
 const JSON_END = /[\}\]]\s*$/;
@@ -6,7 +7,18 @@ const CONTENT_TYPE_APPLICATION_JSON = {
   "Content-Type": "application/json;charset=utf-8",
 };
 
+function getDefaultAdapter() {
+  let adapter;
+  if (typeof XMLHttpRequest !== "undefined") {
+    adapter = xhrAdapter;
+  } else if (typeof process !== "undefined") {
+    // node use http adapter
+  }
+  return adapter;
+}
+
 const defaultConfigs = {
+  adapter: getDefaultAdapter(),
   transformRequest: [
     function (data) {
       return isObject(data) && !isFile(data) && !isBlob(data)
@@ -14,7 +26,6 @@ const defaultConfigs = {
         : null;
     },
   ],
-
   transformResponse: [
     function (data) {
       if (typeof data === "string") {
@@ -26,6 +37,7 @@ const defaultConfigs = {
       return data;
     },
   ],
+  timeout: 0,
 };
 
 export default defaultConfigs;

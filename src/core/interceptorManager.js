@@ -1,5 +1,4 @@
-import { forEach } from "../utils";
-
+import { forEach } from "underscore";
 export default function InterceptorManager() {
   this.handlers = [];
 }

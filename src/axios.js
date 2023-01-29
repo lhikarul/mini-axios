@@ -1,26 +1,31 @@
-import { forEach, merge, spread } from "./utils";
-import defaultConfigs from "./defaults";
+import Cancel from "./cancel/Cancel";
+import CancelToken from "./cancel/CancelToken";
+import isCancel from "./cancel/isCancel";
+import { bind, extend, forEach } from "underscore";
+import defaults from "./defaults";
 import InterceptorManager from "./core/interceptorManager";
 import dispatchRequest from "./core/dispatchRequest";
-export default function axios(config) {
-  config = merge(
-    {
-      method: "get",
-      transformRequest: defaultConfigs.transformRequest,
-      transformResponse: defaultConfigs.transformResponse,
-    },
-    config
-  );
+
+function Axios(defaultConfig) {
+  this.defaults = Object.assign(defaults, defaultConfig);
+  this.interceptors = {
+    request: new InterceptorManager(),
+    response: new InterceptorManager(),
+  };
+}
+
+Axios.prototype.request = function request(config) {
+  config = Object.assign(defaults, this.defaults, { method: "get" }, config);
 
   const chain = [dispatchRequest, undefined];
 
   let promise = Promise.resolve(config);
 
-  axios.interceptors.request.forEach(function (interceptor) {
+  this.interceptors.request.forEach(function (interceptor) {
     chain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
 
-  axios.interceptors.response.forEach(function (interceptor) {
+  this.interceptors.response.forEach(function (interceptor) {
     chain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
 
@@ -43,46 +48,59 @@ export default function axios(config) {
   };
 
   return promise;
-}
-
-axios.all = (requests) => {
-  return Promise.all([...requests]);
 };
 
-axios.spread = spread;
+forEach(["delete", "get", "head"], function (method) {
+  Axios.prototype[method] = function (url, config) {
+    return this.request(
+      Object.assign(config || {}, {
+        method,
+        url,
+      })
+    );
+  };
+});
 
-axios.interceptors = {
-  request: new InterceptorManager(),
-  response: new InterceptorManager(),
+forEach(["post", "put", "patch"], function (method) {
+  Axios.prototype[method] = function (url, data, config) {
+    return this.request(
+      Object.assign(config || {}, {
+        method,
+        url,
+        data,
+      })
+    );
+  };
+});
+
+function createInstance(defaultConfig) {
+  const context = new Axios(defaultConfig);
+  const instance = bind(Axios.prototype.request, context);
+
+  // Copy axios.prototype to instance
+  extend(instance, Axios.prototype, context);
+
+  // Copy context to instance
+  extend(instance, context);
+
+  return instance;
+}
+
+const axios = createInstance();
+
+axios.Axios = Axios;
+
+axios.create = function create(defaultConfig) {
+  return createInstance(defaultConfig);
 };
 
-createShortMethods("delete", "get", "head");
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
 
-function createShortMethods() {
-  forEach(arguments, function (method) {
-    axios[method] = function (url, config) {
-      return axios(
-        Object.assign(config || {}, {
-          method,
-          url,
-        })
-      );
-    };
-  });
-}
+axios.Cancel = Cancel;
+axios.isCancel = isCancel;
+axios.CancelToken = CancelToken;
+// axios.spread = spread;
 
-createShortMethodsWithData("post", "put", "patch");
-
-function createShortMethodsWithData() {
-  forEach(arguments, function (method) {
-    axios[method] = function (url, data, config) {
-      return axios(
-        merge(config || {}, {
-          method: method,
-          url: url,
-          data: data,
-        })
-      );
-    };
-  });
-}
+export default axios;

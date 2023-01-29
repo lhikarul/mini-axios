@@ -22,13 +22,21 @@ function getUserPermissions2() {
 // );
 
 axios.interceptors.request.use(function (config) {
+  console.log("interceptors ", config);
   config.url = "https://jsonplaceholder.typicode.com/comments?postId=10";
+  setTimeout(() => {
+    source.cancel("Operation canceled by the user.");
+  }, 0);
   return config;
 });
 
-axios.interceptors.response.use(function (response) {
-  return response;
-});
+// axios.interceptors.response.use(function (response) {
+//   console.log("interceptors ", response);
+//   return response;
+// });
+
+const CancelToken = axios.CancelToken;
+const source = CancelToken.source();
 
 axios
   .get("https://jsonplaceholder.typicode.com/comments?postId=1", {
@@ -39,12 +47,16 @@ axios
         return data;
       },
     ],
+    cancelToken: source.token,
   })
   .then(function (response) {
     console.log("response ", response);
   })
   .catch(function (response) {
-    console.log("catch ");
+    console.log("catch ", response);
+    if (axios.isCancel(response)) {
+      console.log("request canceld ", response.message);
+    }
   });
 
 // axios
